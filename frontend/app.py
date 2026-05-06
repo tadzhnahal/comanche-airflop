@@ -3,7 +3,7 @@ import streamlit.components.v1 as components_html
 
 from api import (get_components, get_dependencies, run_analysis,
                  create_component, create_dependency, delete_component_by_id,
-                 delete_dependency_by_id,)
+                 delete_dependency_by_id, update_component_by_id)
 from graph_view import build_graph_html
 
 st.set_page_config(
@@ -62,6 +62,68 @@ with st.sidebar:
                     st.rerun()
                 except Exception as e:
                     st.error(f"Не удалось добавить компонент: {e}")
+
+    with st.expander("Редактировать компонент"):
+        if components:
+            edit_component_options = {}
+
+            for item in components:
+                label = f"{item['id']} — {item['name']} ({item['component_type']})"
+                edit_component_options[label] = item["id"]
+
+            edit_component_label = st.selectbox(
+                "Выберите компонент, чтобы отредактировать",
+                list(edit_component_options.keys()),
+            )
+
+            edit_component_id = edit_component_options[edit_component_label]
+            selected_component = component_map[edit_component_id]
+
+            component_type_options = ["source", "mart", "dashboard", "service", "report", "other"]
+
+            current_type = selected_component["component_type"]
+            if current_type not in component_type_options:
+                component_type_options.append(current_type)
+
+            current_type_index = component_type_options.index(current_type)
+
+            with st.form("edit_component_form"):
+                updated_component_name = st.text_input(
+                    "Новое название компонента",
+                    value=selected_component["name"],
+                )
+                updated_component_type = st.selectbox(
+                    "Новый тип компонента",
+                    component_type_options,
+                    index=current_type_index,
+                )
+                updated_component_description = st.text_area(
+                    "Новое описание",
+                    value=selected_component["description"] or "",
+                    height=80,
+                )
+
+                update_component_submit = st.form_submit_button("Сохранить изменения")
+
+            if update_component_submit:
+                if not updated_component_name.strip():
+                    st.error("Название для компонента не должно быть пустым")
+                else:
+                    try:
+                        update_component_by_id(
+                            component_id=edit_component_id,
+                            name=updated_component_name.strip(),
+                            component_type=updated_component_type,
+                            description=updated_component_description.strip() or None,
+                        )
+                        st.session_state["analysis_result"] = None
+                        st.success("Вы успешно обновили компонент")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Не удалось обновить компонент: {e}")
+
+        else:
+            st.info("Сначала добавьте хотя бы один компонент")
 
     with st.expander("Удалить компонент"):
         if components:

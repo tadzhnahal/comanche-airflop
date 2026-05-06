@@ -60,10 +60,10 @@ def delete_dependency_by_id(dependency_id: int):
     response.raise_for_status()
     return response.json()
 
-def update_component_by_id(component_id: int, name: str, description: str | None = None):
+def update_component_by_id(component_id: int, name: str, component_type: str, description: str | None = None):
     payload = {
         "name": name,
-        "component_type": component_id,
+        "component_type": component_type,
         "description": description,
     }
 
