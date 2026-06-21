@@ -534,7 +534,17 @@ function GraphCanvas(props: ComponentProps) {
         <button
           className={analysisMode ? "graph-tool-button graph-tool-active" : "graph-tool-button"}
           title="Анализ"
-          onClick={() => sendSimpleEvent("toggle_analysis_mode", "toolbar", [], [])}
+          onClick={() => {
+            const selectedNodeIds = getSelectedNodeIds(latestNodesRef.current);
+            const selectedEdgeIds = getSelectedEdgeIds(latestEdgesRef.current);
+
+            sendSimpleEvent(
+              "analysis_button_click",
+              "toolbar",
+              selectedNodeIds,
+              selectedEdgeIds
+            );
+          }}
         >
           ◎
         </button>
