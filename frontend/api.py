@@ -70,3 +70,14 @@ def update_component_by_id(component_id: int, name: str, component_type: str, de
     response = requests.put(f"{API_BASE_URL}/components/{component_id}", json=payload, timeout=10)
     response.raise_for_status()
     return response.json()
+
+def update_dependency_by_id(dependency_id: int, source_component_id: int, target_component_id: int, dependency_type: str = "hard"):
+    payload = {
+        "source_component_id": source_component_id,
+        "target_component_id": target_component_id,
+        "dependency_type": dependency_type,
+    }
+
+    response = requests.put(f"{API_BASE_URL}/dependencies/{dependency_id}", json=payload, timeout=10)
+    response.raise_for_status()
+    return response.json()
