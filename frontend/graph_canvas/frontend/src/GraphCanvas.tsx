@@ -3,7 +3,6 @@ import {
   Background,
   Controls,
   Edge,
-  MarkerType,
   MiniMap,
   Node,
   ReactFlow,
@@ -13,144 +12,20 @@ import {
 import "@xyflow/react/dist/style.css";
 import { ComponentProps, Streamlit } from "streamlit-component-lib";
 
-type RawNode = {
-  id: string;
-  label: string;
-  node_type?: string;
-  description?: string;
-  x?: number;
-  y?: number;
-  status?: string;
-  selected?: boolean;
-};
-
-type RawEdge = {
-  id: string;
-  source: string;
-  target: string;
-  label?: string;
-  dependency_type?: string;
-  selected?: boolean;
-};
-
-type CanvasEvent = {
-  event_type: string;
-  target_type: string;
-  node_ids: string[];
-  edge_ids: string[];
-  positions: Record<string, { x: number; y: number }>;
-  payload?: Record<string, unknown>;
-};
-
-function getNodeClass(status?: string) {
-  if (status === "root") {
-    return "graph-node graph-node-root";
-  }
-
-  if (status === "affected") {
-    return "graph-node graph-node-affected";
-  }
-
-  return "graph-node graph-node-normal";
-}
-
-function buildNode(item: RawNode, index: number): Node {
-  const x = item.x ?? 120 + (index % 4) * 220;
-  const y = item.y ?? 80 + Math.floor(index / 4) * 140;
-
-  return {
-    id: String(item.id),
-    position: { x, y },
-    selected: item.selected ?? false,
-    data: {
-      label: item.label,
-      node_type: item.node_type,
-      description: item.description
-    },
-    className: getNodeClass(item.status),
-    type: "default",
-    draggable: true,
-    selectable: true
-  };
-}
-
-function buildNodes(rawNodes: RawNode[]): Node[] {
-  return rawNodes.map((item, index) => buildNode(item, index));
-}
-
-function mergeNodes(rawNodes: RawNode[], currentNodes: Node[], resetLayout: boolean): Node[] {
-  const currentNodeMap = new Map<string, Node>();
-
-  for (const node of currentNodes) {
-    currentNodeMap.set(node.id, node);
-  }
-
-  return rawNodes.map((item, index) => {
-    const nextNode = buildNode(item, index);
-    const currentNode = currentNodeMap.get(nextNode.id);
-
-    if (currentNode && !resetLayout) {
-      nextNode.position = currentNode.position;
-    }
-
-    return nextNode;
-  });
-}
-
-function buildEdges(rawEdges: RawEdge[]): Edge[] {
-  return rawEdges.map((item) => {
-    const label = item.label ?? item.dependency_type ?? "";
-
-    return {
-      id: String(item.id),
-      source: String(item.source),
-      target: String(item.target),
-      label,
-      selected: item.selected ?? false,
-      animated: false,
-      markerEnd: {
-        type: MarkerType.ArrowClosed
-      },
-      className: "graph-edge",
-      selectable: true
-    };
-  });
-}
-
-function buildPositions(nodes: Node[]) {
-  const positions: Record<string, { x: number; y: number }> = {};
-
-  for (const node of nodes) {
-    positions[node.id] = {
-      x: node.position.x,
-      y: node.position.y
-    };
-  }
-
-  return positions;
-}
-
-function getSafeNodeId(rawNodes: RawNode[], currentValue: string) {
-  if (rawNodes.length === 0) {
-    return "";
-  }
-
-  for (const node of rawNodes) {
-    if (node.id === currentValue) {
-      return currentValue;
-    }
-  }
-
-  return rawNodes[0].id;
-}
-
-function getSelectedNodeIds(nodes: Node[]) {
-  return nodes.filter((node) => node.selected).map((node) => node.id);
-}
-
-function getSelectedEdgeIds(edges: Edge[]) {
-  return edges.filter((edge) => edge.selected).map((edge) => edge.id);
-}
+import CreateMenu from "./components/CreateMenu";
+import DeleteMenu from "./components/DeleteMenu";
+import EditMenu from "./components/EditMenu";
+import Toolbar from "./components/Toolbar";
+import {
+  buildEdges,
+  buildNodes,
+  buildPositions,
+  getSafeNodeId,
+  getSelectedEdgeIds,
+  getSelectedNodeIds,
+  mergeNodes
+} from "./graphData";
+import { CanvasEvent, MenuTargetType, RawEdge, RawNode } from "./types";
 
 function GraphCanvas(props: ComponentProps) {
   const rawNodes = (props.args["nodes"] ?? []) as RawNode[];
@@ -169,10 +44,10 @@ function GraphCanvas(props: ComponentProps) {
   const [createMenuTab, setCreateMenuTab] = useState<"component" | "dependency">("component");
 
   const [editMenuOpen, setEditMenuOpen] = useState(false);
-  const [editTargetType, setEditTargetType] = useState<"component" | "dependency" | "none">("none");
+  const [editTargetType, setEditTargetType] = useState<MenuTargetType>("none");
 
   const [deleteMenuOpen, setDeleteMenuOpen] = useState(false);
-  const [deleteTargetType, setDeleteTargetType] = useState<"component" | "dependency" | "none">("none");
+  const [deleteTargetType, setDeleteTargetType] = useState<MenuTargetType>("none");
 
   const [componentName, setComponentName] = useState("");
   const [componentType, setComponentType] = useState("source");
@@ -263,6 +138,33 @@ function GraphCanvas(props: ComponentProps) {
     };
   }, []);
 
+  const sendEvent = useCallback((event: CanvasEvent) => {
+    Streamlit.setComponentValue({
+      ...event,
+      timestamp: Date.now()
+    });
+  }, []);
+
+  const sendSimpleEvent = useCallback(
+    (
+      eventType: string,
+      targetType: string,
+      nodeIds: string[],
+      edgeIds: string[],
+      payload?: Record<string, unknown>
+    ) => {
+      sendEvent({
+        event_type: eventType,
+        target_type: targetType,
+        node_ids: nodeIds,
+        edge_ids: edgeIds,
+        positions: buildPositions(latestNodesRef.current),
+        payload
+      });
+    },
+    [sendEvent]
+  );
+
   useEffect(() => {
     const sendSelectionOnMouseUp = () => {
       if (nodeDragHappenedRef.current) {
@@ -302,34 +204,7 @@ function GraphCanvas(props: ComponentProps) {
     return () => {
       window.removeEventListener("mouseup", sendSelectionOnMouseUp);
     };
-  }, []);
-
-  const sendEvent = useCallback((event: CanvasEvent) => {
-    Streamlit.setComponentValue({
-      ...event,
-      timestamp: Date.now()
-    });
-  }, []);
-
-  const sendSimpleEvent = useCallback(
-    (
-      eventType: string,
-      targetType: string,
-      nodeIds: string[],
-      edgeIds: string[],
-      payload?: Record<string, unknown>
-    ) => {
-      sendEvent({
-        event_type: eventType,
-        target_type: targetType,
-        node_ids: nodeIds,
-        edge_ids: edgeIds,
-        positions: buildPositions(latestNodesRef.current),
-        payload
-      });
-    },
-    [sendEvent]
-  );
+  }, [sendEvent]);
 
   const closeMenus = () => {
     setCreateMenuOpen(false);
@@ -511,310 +386,70 @@ function GraphCanvas(props: ComponentProps) {
         onClick={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <button
-          className="graph-tool-button"
-          title="Создать компонент или связь"
-          onClick={() => {
-            setCreateMenuOpen(!createMenuOpen);
-            setEditMenuOpen(false);
-            setDeleteMenuOpen(false);
-          }}
-        >
-          +
-        </button>
-
-        <button
-          className={editMenuOpen ? "graph-tool-button graph-tool-active" : "graph-tool-button"}
-          title="Редактировать выбранный объект"
-          onClick={openEditMenu}
-        >
-          ✎
-        </button>
-
-        <button
-          className={analysisMode ? "graph-tool-button graph-tool-active" : "graph-tool-button"}
-          title="Анализ"
-          onClick={() => {
-            const selectedNodeIds = getSelectedNodeIds(latestNodesRef.current);
-            const selectedEdgeIds = getSelectedEdgeIds(latestEdgesRef.current);
-
-            sendSimpleEvent(
-              "analysis_button_click",
-              "toolbar",
-              selectedNodeIds,
-              selectedEdgeIds
-            );
-          }}
-        >
-          ◎
-        </button>
-
-        <button
-          className="graph-tool-button"
-          title="Сбросить раскладку"
-          onClick={() => sendSimpleEvent("reset_layout", "toolbar", [], [])}
-        >
-          ↻
-        </button>
-
-        <button
-          className={deleteMenuOpen ? "graph-tool-button graph-tool-danger graph-tool-active" : "graph-tool-button graph-tool-danger"}
-          title="Удалить выбранный объект"
-          onClick={openDeleteMenu}
-        >
-          ×
-        </button>
+        <Toolbar
+          analysisMode={analysisMode}
+          createMenuOpen={createMenuOpen}
+          editMenuOpen={editMenuOpen}
+          deleteMenuOpen={deleteMenuOpen}
+          latestNodesRef={latestNodesRef}
+          latestEdgesRef={latestEdgesRef}
+          setCreateMenuOpen={setCreateMenuOpen}
+          setEditMenuOpen={setEditMenuOpen}
+          setDeleteMenuOpen={setDeleteMenuOpen}
+          openEditMenu={openEditMenu}
+          openDeleteMenu={openDeleteMenu}
+          sendSimpleEvent={sendSimpleEvent}
+        />
 
         {createMenuOpen && (
-          <div className="graph-popup-menu">
-            <div className="graph-menu-tabs">
-              <button
-                className={createMenuTab === "component" ? "graph-menu-tab-active" : ""}
-                onClick={() => setCreateMenuTab("component")}
-              >
-                Компонент
-              </button>
-              <button
-                className={createMenuTab === "dependency" ? "graph-menu-tab-active" : ""}
-                onClick={() => setCreateMenuTab("dependency")}
-              >
-                Связь
-              </button>
-            </div>
-
-            {createMenuTab === "component" && (
-              <div className="graph-menu-form">
-                <label>
-                  Название
-                  <input
-                    value={componentName}
-                    onChange={(event) => setComponentName(event.target.value)}
-                    placeholder="events_mart"
-                  />
-                </label>
-
-                <label>
-                  Тип
-                  <select
-                    value={componentType}
-                    onChange={(event) => setComponentType(event.target.value)}
-                  >
-                    <option value="source">source</option>
-                    <option value="mart">mart</option>
-                    <option value="dashboard">dashboard</option>
-                    <option value="service">service</option>
-                    <option value="report">report</option>
-                    <option value="other">other</option>
-                  </select>
-                </label>
-
-                <label>
-                  Описание
-                  <textarea
-                    value={componentDescription}
-                    onChange={(event) => setComponentDescription(event.target.value)}
-                    placeholder="Короткое описание"
-                  />
-                </label>
-
-                <button
-                  className="graph-menu-submit"
-                  type="button"
-                  onClick={createComponent}
-                >
-                  Создать
-                </button>
-              </div>
-            )}
-
-            {createMenuTab === "dependency" && (
-              <div className="graph-menu-form">
-                <label>
-                  Откуда
-                  <select
-                    value={sourceNodeId}
-                    onChange={(event) => setSourceNodeId(event.target.value)}
-                  >
-                    {rawNodes.map((node) => (
-                      <option key={node.id} value={node.id}>
-                        {node.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Куда
-                  <select
-                    value={targetNodeId}
-                    onChange={(event) => setTargetNodeId(event.target.value)}
-                  >
-                    {rawNodes.map((node) => (
-                      <option key={node.id} value={node.id}>
-                        {node.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Тип
-                  <select
-                    value={dependencyType}
-                    onChange={(event) => setDependencyType(event.target.value)}
-                  >
-                    <option value="hard">hard</option>
-                    <option value="soft">soft</option>
-                  </select>
-                </label>
-
-                <button
-                  className="graph-menu-submit"
-                  type="button"
-                  onClick={createDependency}
-                  disabled={rawNodes.length < 2 || sourceNodeId === targetNodeId}
-                >
-                  Создать
-                </button>
-              </div>
-            )}
-          </div>
+          <CreateMenu
+            rawNodes={rawNodes}
+            createMenuTab={createMenuTab}
+            setCreateMenuTab={setCreateMenuTab}
+            componentName={componentName}
+            setComponentName={setComponentName}
+            componentType={componentType}
+            setComponentType={setComponentType}
+            componentDescription={componentDescription}
+            setComponentDescription={setComponentDescription}
+            sourceNodeId={sourceNodeId}
+            setSourceNodeId={setSourceNodeId}
+            targetNodeId={targetNodeId}
+            setTargetNodeId={setTargetNodeId}
+            dependencyType={dependencyType}
+            setDependencyType={setDependencyType}
+            createComponent={createComponent}
+            createDependency={createDependency}
+          />
         )}
 
         {editMenuOpen && (
-          <div className="graph-popup-menu">
-            {editTargetType === "none" && (
-              <div className="graph-menu-empty">
-                Выберите один компонент или одну связь.
-              </div>
-            )}
-
-            {editTargetType === "component" && (
-              <div className="graph-menu-form">
-                <div className="graph-menu-title">Редактировать компонент</div>
-
-                <label>
-                  Название
-                  <input
-                    value={editComponentName}
-                    onChange={(event) => setEditComponentName(event.target.value)}
-                  />
-                </label>
-
-                <label>
-                  Тип
-                  <select
-                    value={editComponentType}
-                    onChange={(event) => setEditComponentType(event.target.value)}
-                  >
-                    <option value="source">source</option>
-                    <option value="mart">mart</option>
-                    <option value="dashboard">dashboard</option>
-                    <option value="service">service</option>
-                    <option value="report">report</option>
-                    <option value="other">other</option>
-                  </select>
-                </label>
-
-                <label>
-                  Описание
-                  <textarea
-                    value={editComponentDescription}
-                    onChange={(event) => setEditComponentDescription(event.target.value)}
-                  />
-                </label>
-
-                <button
-                  className="graph-menu-submit"
-                  type="button"
-                  onClick={updateComponent}
-                >
-                  Сохранить
-                </button>
-              </div>
-            )}
-
-            {editTargetType === "dependency" && (
-              <div className="graph-menu-form">
-                <div className="graph-menu-title">Редактировать связь</div>
-
-                <label>
-                  Откуда
-                  <select
-                    value={editSourceNodeId}
-                    onChange={(event) => setEditSourceNodeId(event.target.value)}
-                  >
-                    {rawNodes.map((node) => (
-                      <option key={node.id} value={node.id}>
-                        {node.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Куда
-                  <select
-                    value={editTargetNodeId}
-                    onChange={(event) => setEditTargetNodeId(event.target.value)}
-                  >
-                    {rawNodes.map((node) => (
-                      <option key={node.id} value={node.id}>
-                        {node.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Тип
-                  <select
-                    value={editDependencyType}
-                    onChange={(event) => setEditDependencyType(event.target.value)}
-                  >
-                    <option value="hard">hard</option>
-                    <option value="soft">soft</option>
-                  </select>
-                </label>
-
-                <button
-                  className="graph-menu-submit"
-                  type="button"
-                  onClick={updateDependency}
-                  disabled={editSourceNodeId === editTargetNodeId}
-                >
-                  Сохранить
-                </button>
-              </div>
-            )}
-          </div>
+          <EditMenu
+            rawNodes={rawNodes}
+            editTargetType={editTargetType}
+            editComponentName={editComponentName}
+            setEditComponentName={setEditComponentName}
+            editComponentType={editComponentType}
+            setEditComponentType={setEditComponentType}
+            editComponentDescription={editComponentDescription}
+            setEditComponentDescription={setEditComponentDescription}
+            editSourceNodeId={editSourceNodeId}
+            setEditSourceNodeId={setEditSourceNodeId}
+            editTargetNodeId={editTargetNodeId}
+            setEditTargetNodeId={setEditTargetNodeId}
+            editDependencyType={editDependencyType}
+            setEditDependencyType={setEditDependencyType}
+            updateComponent={updateComponent}
+            updateDependency={updateDependency}
+          />
         )}
 
         {deleteMenuOpen && (
-          <div className="graph-popup-menu">
-            {deleteTargetType === "none" && (
-              <div className="graph-menu-empty">
-                Выберите один компонент или одну связь.
-              </div>
-            )}
-
-            {deleteTargetType !== "none" && (
-              <div className="graph-menu-form">
-                <div className="graph-menu-title">Удалить объект</div>
-                <div className="graph-delete-text">
-                  {deleteTargetType === "component" ? "Компонент" : "Связь"}: {deleteTargetLabel}
-                </div>
-
-                <button
-                  className="graph-menu-submit graph-menu-delete"
-                  type="button"
-                  onClick={deleteSelectedObject}
-                >
-                  Удалить
-                </button>
-              </div>
-            )}
-          </div>
+          <DeleteMenu
+            deleteTargetType={deleteTargetType}
+            deleteTargetLabel={deleteTargetLabel}
+            deleteSelectedObject={deleteSelectedObject}
+          />
         )}
       </div>
 
@@ -916,4 +551,3 @@ function GraphCanvas(props: ComponentProps) {
 }
 
 export default GraphCanvas;
-
