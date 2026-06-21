@@ -1,11 +1,55 @@
 import streamlit as st
-import streamlit.components.v1 as components_html
 
 from api import (get_components, get_dependencies, run_analysis,
                  create_component, create_dependency, delete_component_by_id,
                  delete_dependency_by_id, update_component_by_id,
                  update_dependency_by_id)
-from graph_view import build_graph_html
+from graph_canvas import graph_canvas
+
+
+def build_canvas_nodes(components, root_id=None, affected_ids=None):
+    nodes = []
+    affected_ids = affected_ids or []
+
+    for index, item in enumerate(components):
+        status = "normal"
+
+        if root_id is not None and item["id"] == root_id:
+            status = "root"
+        elif item["id"] in affected_ids:
+            status = "affected"
+
+        nodes.append(
+            {
+                "id": str(item["id"]),
+                "label": item["name"],
+                "node_type": item["component_type"],
+                "description": item["description"],
+                "x": 120 + (index % 4) * 220,
+                "y": 80 + (index // 4) * 140,
+                "status": status,
+            }
+        )
+
+    return nodes
+
+
+def build_canvas_edges(dependencies):
+    edges = []
+
+    for item in dependencies:
+        edges.append(
+            {
+                "id": str(item["id"]),
+                "source": str(item["source_component_id"]),
+                "target": str(item["target_component_id"]),
+                "label": item["dependency_type"],
+                "dependency_type": item["dependency_type"],
+            }
+        )
+
+    return edges
+
 
 st.set_page_config(
     page_title="Аналитическая карта зависимостей",
@@ -35,6 +79,15 @@ component_map = {}
 for item in components:
     component_map[item["id"]] = item
 
+root_id = None
+affected_ids = []
+
+if analysis_result:
+    root_id = analysis_result["root_component"]["id"]
+
+    for item in analysis_result["affected_components"]:
+        affected_ids.append(item["id"])
+
 with st.sidebar:
     st.header("Управление")
 
@@ -59,6 +112,7 @@ with st.sidebar:
                         component_type=new_component_type,
                         description=new_component_description.strip() or None,
                     )
+                    st.session_state["analysis_result"] = None
                     st.success("Вы успешно добавили компонент")
                     st.rerun()
                 except Exception as e:
@@ -172,16 +226,16 @@ with st.sidebar:
                 source_label = st.selectbox(
                     "Исходный компонент",
                     list(dependency_component_options.keys()),
-                    key="dependency_source"
+                    key="dependency_source",
                 )
                 target_label = st.selectbox(
                     "Зависимый компонент",
                     list(dependency_component_options.keys()),
-                    key="dependency_target"
+                    key="dependency_target",
                 )
                 new_dependency_type = st.selectbox(
                     "Тип зависимости",
-                    ["hard", "soft"]
+                    ["hard", "soft"],
                 )
 
                 create_dependency_submit = st.form_submit_button("Добавить зависимость")
@@ -199,6 +253,7 @@ with st.sidebar:
                             target_component_id=target_id,
                             dependency_type=new_dependency_type,
                         )
+                        st.session_state["analysis_result"] = None
                         st.success("Вы успешно добавили зависимость")
                         st.rerun()
                     except Exception as e:
@@ -338,6 +393,7 @@ with st.sidebar:
     with st.expander("Запустить анализ влияния"):
         if components:
             component_options = {}
+
             for item in components:
                 label = f"{item['id']} — {item['name']} ({item['component_type']})"
                 component_options[label] = item["id"]
@@ -403,22 +459,23 @@ with metrics_col_3:
 st.subheader("Карта зависимостей")
 
 if components:
-    root_id = None
-    affected_ids = []
-
-    if analysis_result:
-        root_id = analysis_result["root_component"]["id"]
-
-        for item in analysis_result["affected_components"]:
-            affected_ids.append(item["id"])
-
-    graph_html = build_graph_html(
+    canvas_nodes = build_canvas_nodes(
         components,
-        dependencies,
         root_id=root_id,
         affected_ids=affected_ids,
     )
-    components_html.html(graph_html, height=560, scrolling=False)
+    canvas_edges = build_canvas_edges(dependencies)
+
+    canvas_event = graph_canvas(
+        nodes=canvas_nodes,
+        edges=canvas_edges,
+        height=560,
+        key="graph_canvas_stage_8",
+    )
+
+    if canvas_event:
+        st.write("Событие из поля карты:")
+        st.json(canvas_event)
 else:
     st.info("Карта пока пустая. Добавьте первый компонент через боковую панель.")
 
