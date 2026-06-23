@@ -16,7 +16,7 @@ export function getNodeClass(status?: string) {
 
 export function buildNode(item: RawNode, index: number): Node {
   const x = item.x ?? 120 + (index % 4) * 220;
-  const y = item.y ?? 130 + Math.floor(index / 4) * 140;
+  const y = item.y ?? 80 + Math.floor(index / 4) * 140;
 
   return {
     id: String(item.id),
@@ -28,7 +28,7 @@ export function buildNode(item: RawNode, index: number): Node {
       description: item.description
     },
     className: getNodeClass(item.status),
-    type: "default",
+    type: "componentNode",
     draggable: true,
     selectable: true
   };
@@ -65,6 +65,8 @@ export function buildEdges(rawEdges: RawEdge[]): Edge[] {
       id: String(item.id),
       source: String(item.source),
       target: String(item.target),
+      sourceHandle: "source-right",
+      targetHandle: "target-left",
       label,
       selected: item.selected ?? false,
       animated: false,

@@ -13,6 +13,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { ComponentProps, Streamlit } from "streamlit-component-lib";
 
+import ComponentNode from "./components/ComponentNode";
 import ContextMenu, { ContextMenuState } from "./components/ContextMenu";
 import CreateMenu from "./components/CreateMenu";
 import DeleteMenu from "./components/DeleteMenu";
@@ -107,6 +108,11 @@ function GraphCanvas(props: ComponentProps) {
 
   const initialNodes = useMemo(() => buildNodes(rawNodes), [rawNodes]);
   const initialEdges = useMemo(() => buildEdges(rawEdges), [rawEdges]);
+  const nodeTypes = useMemo(() => {
+      return {
+        componentNode: ComponentNode
+      };
+  }, []);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -950,6 +956,7 @@ function GraphCanvas(props: ComponentProps) {
         onInit={(instance) => {
           reactFlowInstanceRef.current = instance;
         }}
+        nodeTypes={nodeTypes}
         className="graph-flow"
         style={{ width: "100%", height: "100%" }}
         nodes={nodes}

@@ -72,6 +72,30 @@ body {
   background: #e0f2fe;
 }
 
+.graph-node-content {
+  pointer-events: none;
+}
+
+.graph-node-label {
+  pointer-events: none;
+}
+
+.react-flow__handle.graph-handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #ffffff;
+  background: #2563eb;
+  opacity: 0.95;
+}
+
+.react-flow__handle.graph-handle:hover {
+  background: #1d4ed8;
+}
+
+.react-flow__node.selected .react-flow__handle.graph-handle {
+  background: #8b5cf6;
+}
+
 .graph-edge {
   stroke-width: 2;
 }
