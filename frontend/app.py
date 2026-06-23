@@ -7,14 +7,59 @@ from canvas_data import (build_canvas_edges, build_canvas_nodes,
                          get_valid_node_ids)
 from canvas_events import handle_canvas_event
 from graph_canvas import graph_canvas
-from ui_sections import (show_analysis_result, show_canvas_message,
-                         show_components_table, show_dependencies_table)
+from ui_sections import show_analysis_result, show_canvas_message
 
 
 st.set_page_config(
-    page_title="Аналитическая карта зависимостей",
+    page_title="Comanche Airflop",
     layout="wide",
     initial_sidebar_state="collapsed",
+)
+
+st.markdown(
+    """
+    <style>
+    header[data-testid="stHeader"] {
+        display: none;
+    }
+
+    #MainMenu {
+        visibility: hidden;
+    }
+
+    footer {
+        visibility: hidden;
+    }
+
+    .block-container {
+        max-width: 100%;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        padding-top: 0.5rem;
+        padding-bottom: 0;
+    }
+
+    [data-testid="stElementContainer"] {
+        width: 100%;
+    }
+
+    [data-testid="stAppViewContainer"] {
+        overflow-x: hidden;
+    }
+
+    [data-testid="stVerticalBlock"] {
+        gap: 0;
+    }
+
+    iframe {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: calc(100vh - 1rem) !important;
+        display: block;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 init_session_state()
@@ -65,5 +110,3 @@ handle_canvas_event(canvas_event)
 
 show_canvas_message()
 show_analysis_result(analysis_result)
-show_components_table(components)
-show_dependencies_table(components, dependencies)

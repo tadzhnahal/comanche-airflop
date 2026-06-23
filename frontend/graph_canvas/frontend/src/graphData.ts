@@ -16,7 +16,7 @@ export function getNodeClass(status?: string) {
 
 export function buildNode(item: RawNode, index: number): Node {
   const x = item.x ?? 120 + (index % 4) * 220;
-  const y = item.y ?? 80 + Math.floor(index / 4) * 140;
+  const y = item.y ?? 130 + Math.floor(index / 4) * 140;
 
   return {
     id: String(item.id),

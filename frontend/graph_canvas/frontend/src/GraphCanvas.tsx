@@ -101,7 +101,6 @@ function getEdgeIdFromTarget(target: EventTarget | null) {
 function GraphCanvas(props: ComponentProps) {
   const rawNodes = (props.args["nodes"] ?? []) as RawNode[];
   const rawEdges = (props.args["edges"] ?? []) as RawEdge[];
-  const height = (props.args["height"] ?? 680) as number;
   const analysisMode = (props.args["analysis_mode"] ?? false) as boolean;
   const layoutVersion = (props.args["layout_version"] ?? 0) as number;
 
@@ -188,10 +187,6 @@ function GraphCanvas(props: ComponentProps) {
     setEditSourceNodeId((currentValue) => getSafeNodeId(rawNodes, currentValue));
     setEditTargetNodeId((currentValue) => getSafeNodeId(rawNodes, currentValue));
   }, [rawNodes, rawEdges, layoutVersion, setNodes, setEdges]);
-
-  useEffect(() => {
-    Streamlit.setFrameHeight(height + 20);
-  }, [height]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -535,47 +530,6 @@ function GraphCanvas(props: ComponentProps) {
     setEditMenuOpen(true);
   };
 
-  const openEditMenuFromContext = () => {
-    if (contextMenu.targetType === "node" && contextMenu.targetId) {
-      const selectedNode = rawNodes.find((node) => node.id === contextMenu.targetId);
-
-      if (!selectedNode) {
-        return;
-      }
-
-      setCreateMenuOpen(false);
-      setDeleteMenuOpen(false);
-      hideContextMenu();
-
-      setEditTargetType("component");
-      setEditComponentId(selectedNode.id);
-      setEditComponentName(selectedNode.label);
-      setEditComponentType(selectedNode.node_type || "other");
-      setEditComponentDescription(selectedNode.description || "");
-      setEditMenuOpen(true);
-      return;
-    }
-
-    if (contextMenu.targetType === "edge" && contextMenu.targetId) {
-      const selectedEdge = rawEdges.find((edge) => edge.id === contextMenu.targetId);
-
-      if (!selectedEdge) {
-        return;
-      }
-
-      setCreateMenuOpen(false);
-      setDeleteMenuOpen(false);
-      hideContextMenu();
-
-      setEditTargetType("dependency");
-      setEditDependencyId(selectedEdge.id);
-      setEditSourceNodeId(selectedEdge.source);
-      setEditTargetNodeId(selectedEdge.target);
-      setEditDependencyType(selectedEdge.dependency_type || "hard");
-      setEditMenuOpen(true);
-    }
-  };
-
   const updateComponent = () => {
     const cleanName = editComponentName.trim();
 
@@ -594,11 +548,7 @@ function GraphCanvas(props: ComponentProps) {
   };
 
   const updateDependency = () => {
-    if (!editDependencyId || !editSourceNodeId || !editTargetNodeId) {
-      return;
-    }
-
-    if (editSourceNodeId === editTargetNodeId) {
+    if (!editDependencyId || !editSourceNodeId || !editTargetNodeId || editSourceNodeId === editTargetNodeId) {
       return;
     }
 
@@ -644,6 +594,47 @@ function GraphCanvas(props: ComponentProps) {
     setDeleteTargetId("");
     setDeleteTargetLabel("");
     setDeleteMenuOpen(true);
+  };
+
+  const openEditMenuFromContext = () => {
+    if (contextMenu.targetType === "node" && contextMenu.targetId) {
+      const selectedNode = rawNodes.find((node) => node.id === contextMenu.targetId);
+
+      if (!selectedNode) {
+        return;
+      }
+
+      setCreateMenuOpen(false);
+      setDeleteMenuOpen(false);
+      hideContextMenu();
+
+      setEditTargetType("component");
+      setEditComponentId(selectedNode.id);
+      setEditComponentName(selectedNode.label);
+      setEditComponentType(selectedNode.node_type || "other");
+      setEditComponentDescription(selectedNode.description || "");
+      setEditMenuOpen(true);
+      return;
+    }
+
+    if (contextMenu.targetType === "edge" && contextMenu.targetId) {
+      const selectedEdge = rawEdges.find((edge) => edge.id === contextMenu.targetId);
+
+      if (!selectedEdge) {
+        return;
+      }
+
+      setCreateMenuOpen(false);
+      setDeleteMenuOpen(false);
+      hideContextMenu();
+
+      setEditTargetType("dependency");
+      setEditDependencyId(selectedEdge.id);
+      setEditSourceNodeId(selectedEdge.source);
+      setEditTargetNodeId(selectedEdge.target);
+      setEditDependencyType(selectedEdge.dependency_type || "hard");
+      setEditMenuOpen(true);
+    }
   };
 
   const openDeleteMenuFromContext = () => {
@@ -844,10 +835,10 @@ function GraphCanvas(props: ComponentProps) {
   };
 
   return (
+  <div className="graph-canvas-frame">
     <div
       ref={shellRef}
       className={spacePressed ? "graph-canvas-shell graph-space-mode" : "graph-canvas-shell"}
-      style={{ height }}
       onTouchStart={handleTwoFingerTouchStart}
       onTouchMove={handleTwoFingerTouchMove}
       onTouchEnd={handleTwoFingerTouchEnd}
@@ -950,13 +941,20 @@ function GraphCanvas(props: ComponentProps) {
         </div>
       )}
 
+      <div className="graph-brand-watermark">
+        Comanche Airflop
+      </div>
+
       <ReactFlow
         onInit={(instance) => {
           reactFlowInstanceRef.current = instance;
         }}
+        className="graph-flow"
+        style={{ width: "100%", height: "100%" }}
         nodes={nodes}
         edges={edges}
         fitView
+        fitViewOptions={{ padding: 0.16 }}
         panOnDrag={spacePressed}
         zoomOnScroll
         zoomOnPinch
@@ -1039,11 +1037,12 @@ function GraphCanvas(props: ComponentProps) {
         }}
         proOptions={{ hideAttribution: true }}
       >
-        <MiniMap />
+        <MiniMap className="graph-minimap" />
         <Controls />
         <Background />
-      </ReactFlow>
+        </ReactFlow>
     </div>
+  </div>
   );
 }
 
