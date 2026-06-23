@@ -28,4 +28,5 @@ def graph_canvas(
         layout_version=layout_version,
         default=None,
         key=key,
+        component_height=height + 16,
     )
