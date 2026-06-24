@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
+
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
 
@@ -32,16 +33,11 @@ def run_analysis(component_id: int):
     return response.json()
 
 
-def create_component(name: str, component_type: str,
-                     description: str | None = None,
-                     position_x: float | None = None,
-                     position_y: float | None = None,):
+def create_component(name: str, component_type: str, description: str | None = None):
     payload = {
         "name": name,
         "component_type": component_type,
         "description": description,
-        "position_x": position_x,
-        "position_y": position_y,
     }
 
     response = requests.post(f"{API_BASE_URL}/components", json=payload, timeout=10)
@@ -49,11 +45,19 @@ def create_component(name: str, component_type: str,
     return response.json()
 
 
-def create_dependency(source_component_id: int, target_component_id: int, dependency_type: str = "hard"):
+def create_dependency(
+    source_component_id: int,
+    target_component_id: int,
+    dependency_type: str = "hard",
+    source_handle: str | None = None,
+    target_handle: str | None = None,
+):
     payload = {
         "source_component_id": source_component_id,
         "target_component_id": target_component_id,
         "dependency_type": dependency_type,
+        "source_handle": source_handle,
+        "target_handle": target_handle,
     }
 
     response = requests.post(f"{API_BASE_URL}/dependencies", json=payload, timeout=10)
@@ -73,7 +77,12 @@ def delete_dependency_by_id(dependency_id: int):
     return response.json()
 
 
-def update_component_by_id(component_id: int, name: str, component_type: str, description: str | None = None):
+def update_component_by_id(
+    component_id: int,
+    name: str,
+    component_type: str,
+    description: str | None = None,
+):
     payload = {
         "name": name,
         "component_type": component_type,
@@ -85,43 +94,22 @@ def update_component_by_id(component_id: int, name: str, component_type: str, de
     return response.json()
 
 
-def update_dependency_by_id(dependency_id: int, source_component_id: int, target_component_id: int, dependency_type: str = "hard"):
+def update_dependency_by_id(
+    dependency_id: int,
+    source_component_id: int,
+    target_component_id: int,
+    dependency_type: str = "hard",
+    source_handle: str | None = None,
+    target_handle: str | None = None,
+):
     payload = {
         "source_component_id": source_component_id,
         "target_component_id": target_component_id,
         "dependency_type": dependency_type,
+        "source_handle": source_handle,
+        "target_handle": target_handle,
     }
 
     response = requests.put(f"{API_BASE_URL}/dependencies/{dependency_id}", json=payload, timeout=10)
-    response.raise_for_status()
-    return response.json()
-
-def update_component_positions(positions):
-    payload = {"positions": []}
-
-    for node_id, item in positions.items():
-        try:
-            component_id = int(node_id)
-        except (TypeError, ValueError):
-            continue
-
-        payload["positions"].append(
-            {
-                "id": component_id,
-                "position_x": item["x"],
-                "position_y": item["y"],
-            }
-        )
-
-    if not payload["positions"]:
-        return None
-
-    response = requests.put(f"{API_BASE_URL}/components/positions", json=payload, timeout=10)
-    response.raise_for_status()
-    return response.json()
-
-
-def clear_component_positions():
-    response = requests.delete(f"{API_BASE_URL}/components/positions", timeout=10)
     response.raise_for_status()
     return response.json()

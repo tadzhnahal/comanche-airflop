@@ -29,15 +29,10 @@ def build_canvas_nodes(
         default_y = 80 + (index // 4) * 140
 
         saved_position = graph_positions.get(str(item["id"]))
-        db_x = item.get("position_x")
-        db_y = item.get("position_y")
 
         if saved_position:
             x = saved_position.get("x", default_x)
             y = saved_position.get("y", default_y)
-        elif db_x is not None and db_y is not None:
-            x = db_x
-            y = db_y
         else:
             x = default_x
             y = default_y
@@ -70,6 +65,8 @@ def build_canvas_edges(dependencies, selected_edge_ids=None):
                 "target": str(item["target_component_id"]),
                 "label": item["dependency_type"],
                 "dependency_type": item["dependency_type"],
+                "source_handle": item.get("source_handle") or "source-right",
+                "target_handle": item.get("target_handle") or "target-left",
                 "selected": str(item["id"]) in selected_edge_ids,
             }
         )
