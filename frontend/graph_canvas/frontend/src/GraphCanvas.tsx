@@ -112,6 +112,10 @@ function getEdgeDependencyType(rawEdges: RawEdge[], edgeId: string) {
   return rawEdge.dependency_type || "hard";
 }
 
+function isMultiSelectEvent(event: React.MouseEvent) {
+  return event.shiftKey || event.ctrlKey || event.metaKey;
+}
+
 function GraphCanvas(props: ComponentProps) {
   const rawNodes = (props.args["nodes"] ?? []) as RawNode[];
   const rawEdges = (props.args["edges"] ?? []) as RawEdge[];
@@ -197,10 +201,14 @@ function GraphCanvas(props: ComponentProps) {
     setNodes((currentNodes) => {
       const mergedNodes = mergeNodes(rawNodes, currentNodes, resetLayout);
       latestNodesRef.current = mergedNodes;
+      selectedNodeIdsRef.current = getSelectedNodeIds(mergedNodes);
       return mergedNodes;
     });
 
-    setEdges(buildEdges(rawEdges));
+    const nextEdges = buildEdges(rawEdges);
+    setEdges(nextEdges);
+    latestEdgesRef.current = nextEdges;
+    selectedEdgeIdsRef.current = getSelectedEdgeIds(nextEdges);
 
     setSourceNodeId((currentValue) => getSafeNodeId(rawNodes, currentValue));
     setTargetNodeId((currentValue) => getSafeNodeId(rawNodes, currentValue));
@@ -259,6 +267,16 @@ function GraphCanvas(props: ComponentProps) {
     [sendEvent]
   );
 
+  const sendCurrentSelection = useCallback(() => {
+    sendEvent({
+      event_type: "selection_change",
+      target_type: "selection",
+      node_ids: selectedNodeIdsRef.current,
+      edge_ids: selectedEdgeIdsRef.current,
+      positions: buildPositions(latestNodesRef.current)
+    });
+  }, [sendEvent]);
+
   useEffect(() => {
     const sendSelectionOnMouseUp = () => {
       if (nodeDragHappenedRef.current) {
@@ -280,13 +298,7 @@ function GraphCanvas(props: ComponentProps) {
       selectionChangedRef.current = false;
       ignoreNextPaneClickRef.current = true;
 
-      sendEvent({
-        event_type: "selection_change",
-        target_type: "selection",
-        node_ids: selectedNodeIdsRef.current,
-        edge_ids: selectedEdgeIdsRef.current,
-        positions: buildPositions(latestNodesRef.current)
-      });
+      sendCurrentSelection();
 
       window.setTimeout(() => {
         ignoreNextPaneClickRef.current = false;
@@ -298,7 +310,7 @@ function GraphCanvas(props: ComponentProps) {
     return () => {
       window.removeEventListener("mouseup", sendSelectionOnMouseUp);
     };
-  }, [sendEvent]);
+  }, [sendCurrentSelection]);
 
   const hideContextMenu = () => {
     setContextMenu(closedContextMenu);
@@ -337,6 +349,32 @@ function GraphCanvas(props: ComponentProps) {
       x: clientX,
       y: clientY
     });
+  };
+
+  const clearLocalSelection = () => {
+    setNodes((currentNodes) => {
+      const nextNodes = currentNodes.map((node) => ({
+        ...node,
+        selected: false
+      }));
+
+      latestNodesRef.current = nextNodes;
+      return nextNodes;
+    });
+
+    setEdges((currentEdges) => {
+      const nextEdges = currentEdges.map((edge) => ({
+        ...edge,
+        selected: false
+      }));
+
+      latestEdgesRef.current = nextEdges;
+      return nextEdges;
+    });
+
+    selectedNodeIdsRef.current = [];
+    selectedEdgeIdsRef.current = [];
+    selectionChangedRef.current = false;
   };
 
   const selectOnlyNode = (nodeId: string) => {
@@ -509,8 +547,8 @@ function GraphCanvas(props: ComponentProps) {
   };
 
   const openEditMenu = () => {
-    const selectedNodeIds = getSelectedNodeIds(latestNodesRef.current);
-    const selectedEdgeIds = getSelectedEdgeIds(latestEdgesRef.current);
+    const selectedNodeIds = selectedNodeIdsRef.current;
+    const selectedEdgeIds = selectedEdgeIdsRef.current;
 
     setCreateMenuOpen(false);
     setDeleteMenuOpen(false);
@@ -589,8 +627,8 @@ function GraphCanvas(props: ComponentProps) {
   };
 
   const openDeleteMenu = () => {
-    const selectedNodeIds = getSelectedNodeIds(latestNodesRef.current);
-    const selectedEdgeIds = getSelectedEdgeIds(latestEdgesRef.current);
+    const selectedNodeIds = selectedNodeIdsRef.current;
+    const selectedEdgeIds = selectedEdgeIdsRef.current;
 
     setCreateMenuOpen(false);
     setEditMenuOpen(false);
@@ -1083,6 +1121,7 @@ function GraphCanvas(props: ComponentProps) {
             }
 
             closeMenus();
+            clearLocalSelection();
             sendSimpleEvent("pane_click", "pane", [], []);
           }}
           onPaneContextMenu={(event) => {
@@ -1098,13 +1137,12 @@ function GraphCanvas(props: ComponentProps) {
               return;
             }
 
-            const isMultiClick = event.shiftKey || event.ctrlKey || event.metaKey;
-
-            if (isMultiClick) {
+            if (isMultiSelectEvent(event)) {
               return;
             }
 
             skipNextSelectionSendRef.current = true;
+            selectOnlyNode(node.id);
             sendSimpleEvent("node_click", "node", [node.id], []);
           }}
           onNodeDoubleClick={(event) => {
@@ -1115,9 +1153,15 @@ function GraphCanvas(props: ComponentProps) {
             event.stopPropagation();
             openNodeContextMenu(event.clientX, event.clientY, node.id);
           }}
-          onEdgeClick={(_, edge) => {
+          onEdgeClick={(event, edge) => {
             hideContextMenu();
+
+            if (isMultiSelectEvent(event)) {
+              return;
+            }
+
             skipNextSelectionSendRef.current = true;
+            selectOnlyEdge(edge.id);
             sendSimpleEvent("edge_click", "edge", [], [edge.id]);
           }}
           onEdgeContextMenu={(event, edge) => {
