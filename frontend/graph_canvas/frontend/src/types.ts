@@ -15,6 +15,8 @@ export type RawEdge = {
   target: string;
   label?: string;
   dependency_type?: string;
+  source_handle?: string;
+  target_handle?: string;
   selected?: boolean;
 };
 

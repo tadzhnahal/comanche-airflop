@@ -1,18 +1,16 @@
 import streamlit as st
 
-from api import (create_component, create_dependency, delete_component_by_id,
-                 delete_dependency_by_id, run_analysis, update_component_by_id,
-                 update_dependency_by_id, clear_component_positions,
-                 update_component_positions)
+from api import (
+    create_component,
+    create_dependency,
+    delete_component_by_id,
+    delete_dependency_by_id,
+    run_analysis,
+    update_component_by_id,
+    update_dependency_by_id,
+)
 from app_state import clear_graph_selection, reset_after_data_change
 from canvas_data import to_int
-
-
-def to_float(value):
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def get_canvas_event_id(canvas_event):
@@ -33,8 +31,6 @@ def create_component_from_canvas(payload):
     name = (payload.get("name") or "").strip()
     component_type = payload.get("component_type") or "other"
     description = (payload.get("description") or "").strip() or None
-    x_position = to_float(payload.get("x"))
-    y_position = to_float(payload.get("y"))
 
     if not name:
         st.session_state["canvas_message"] = "Название компонента не должно быть пустым"
@@ -45,21 +41,11 @@ def create_component_from_canvas(payload):
             name=name,
             component_type=component_type,
             description=description,
-            position_x=x_position,
-            position_y=y_position,
         )
 
         if created_component and "id" in created_component:
-            created_component_id = str(created_component["id"])
-
-            st.session_state["selected_node_ids"] = [created_component_id]
+            st.session_state["selected_node_ids"] = [str(created_component["id"])]
             st.session_state["selected_edge_ids"] = []
-
-            if x_position is not None and y_position is not None:
-                st.session_state["graph_positions"][created_component_id] = {
-                    "x": x_position,
-                    "y": y_position,
-                }
 
         st.session_state["analysis_result"] = None
         st.session_state["analysis_mode"] = False
@@ -74,6 +60,8 @@ def create_dependency_from_canvas(payload):
     source_id = to_int(payload.get("source_component_id"))
     target_id = to_int(payload.get("target_component_id"))
     dependency_type = payload.get("dependency_type") or "hard"
+    source_handle = payload.get("source_handle")
+    target_handle = payload.get("target_handle")
 
     if source_id is None or target_id is None:
         st.session_state["canvas_message"] = "Выберите два компонента"
@@ -88,6 +76,8 @@ def create_dependency_from_canvas(payload):
             source_component_id=source_id,
             target_component_id=target_id,
             dependency_type=dependency_type,
+            source_handle=source_handle,
+            target_handle=target_handle,
         )
         reset_after_data_change("Связь создана")
         st.rerun()
@@ -133,6 +123,8 @@ def update_dependency_from_canvas(payload):
     source_id = to_int(payload.get("source_component_id"))
     target_id = to_int(payload.get("target_component_id"))
     dependency_type = payload.get("dependency_type") or "hard"
+    source_handle = payload.get("source_handle")
+    target_handle = payload.get("target_handle")
 
     if dependency_id is None:
         st.session_state["canvas_message"] = "Связь не найдена"
@@ -152,6 +144,8 @@ def update_dependency_from_canvas(payload):
             source_component_id=source_id,
             target_component_id=target_id,
             dependency_type=dependency_type,
+            source_handle=source_handle,
+            target_handle=target_handle,
         )
         st.session_state["selected_node_ids"] = []
         st.session_state["selected_edge_ids"] = [str(dependency_id)]
@@ -271,11 +265,6 @@ def handle_canvas_event(canvas_event):
     st.session_state["last_canvas_event_type"] = event_type
 
     if event_type == "node_drag_stop":
-        try:
-            update_component_positions(positions)
-        except Exception as e:
-            st.session_state["canvas_message"] = f"Не удалость сохранить координаты: {e}"
-
         return
 
     if event_type == "create_component":
@@ -307,12 +296,6 @@ def handle_canvas_event(canvas_event):
         return
 
     if event_type == "reset_layout":
-        try:
-            clear_component_positions()
-        except Exception as e:
-            st.session_state["canvas_message"] = f"Не удалось сбросить координаты в базе: {e}"
-            return
-
         st.session_state["graph_positions"] = {}
         st.session_state["layout_version"] += 1
         st.session_state["canvas_message"] = "Раскладка сброшена"

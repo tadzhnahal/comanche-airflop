@@ -5,8 +5,6 @@ class ComponentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     component_type: str = Field(min_length=1, max_length=50)
     description: str | None = None
-    position_x: float | None = None
-    position_y: float | None = None
 
 
 class ComponentOut(BaseModel):
@@ -14,14 +12,14 @@ class ComponentOut(BaseModel):
     name: str
     component_type: str
     description: str | None = None
-    position_x: float | None = None
-    position_y: float | None = None
 
 
 class DependencyCreate(BaseModel):
     source_component_id: int
     target_component_id: int
-    dependency_type: str = 'hard'
+    dependency_type: str = "hard"
+    source_handle: str | None = Field(default=None, max_length=30)
+    target_handle: str | None = Field(default=None, max_length=30)
 
 
 class DependencyOut(BaseModel):
@@ -29,6 +27,9 @@ class DependencyOut(BaseModel):
     source_component_id: int
     target_component_id: int
     dependency_type: str
+    source_handle: str
+    target_handle: str
+
 
 class AnalysisRunRequest(BaseModel):
     component_id: int
@@ -39,20 +40,9 @@ class AnalysisComponentOut(BaseModel):
     name: str
     component_type: str
     description: str | None = None
-    position_x: float | None = None
-    position_y: float | None = None
 
 
 class AnalysisResultOut(BaseModel):
     root_component: AnalysisComponentOut
     affected_components: list[AnalysisComponentOut]
     affected_count: int
-
-
-class ComponentPositionIn(BaseModel):
-    id: int
-    position_x: float
-    position_y: float
-
-class ComponentPositionsUpdate(BaseModel):
-    positions: list[ComponentPositionIn]
